@@ -1,13 +1,18 @@
 import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
+// Next.js 15 route handler for dynamic routes
 export async function POST(
-  request: Request,
-  { params }: { params: { id: string } }
+  req: NextRequest, 
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params;
-    const { domain } = await request.json();
+    // Await the params Promise to get the actual ID
+    const { id } = await params;
+    
+    const body = await req.json();
+    const domain = body.domain as string;
     
     if (!domain) {
       return NextResponse.json(
@@ -18,10 +23,7 @@ export async function POST(
     
     // Get the current quiz
     const quiz = await prisma.quiz.findUnique({
-      where: { id },
-      select: {
-        allowedEmbedDomains: true,
-      }
+      where: { id }
     });
     
     if (!quiz) {
@@ -31,17 +33,12 @@ export async function POST(
       );
     }
     
-    // Add the domain if it's not already in the list
-    if (!quiz.allowedEmbedDomains.includes(domain)) {
-      await prisma.quiz.update({
-        where: { id },
-        data: {
-          allowedEmbedDomains: {
-            push: domain,
-          },
-        },
-      });
-    }
+    // Use raw SQL to update the domain list
+    await prisma.$executeRaw`
+      UPDATE "Quiz"
+      SET "allowedEmbedDomains" = COALESCE("allowedEmbedDomains", '{}') || ${domain}::text
+      WHERE "id" = ${id}
+    `;
     
     return NextResponse.json({ success: true });
   } catch (error) {

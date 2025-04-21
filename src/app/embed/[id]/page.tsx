@@ -12,7 +12,8 @@ interface Quiz {
   totalQuestions: number;
 }
 
-export default function EmbedQuiz({ params }: { params: { id: string } }) {
+// Client component that receives the resolved ID
+function EmbedQuizClient({ id }: { id: string }) {
   const [quiz, setQuiz] = useState<Quiz | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -27,7 +28,7 @@ export default function EmbedQuiz({ params }: { params: { id: string } }) {
   useEffect(() => {
     const fetchQuiz = async () => {
       try {
-        const response = await fetch(`/api/public/embed/${params.id}`);
+        const response = await fetch(`/api/public/embed/${id}`);
         if (!response.ok) {
           throw new Error('Failed to load quiz');
         }
@@ -38,6 +39,17 @@ export default function EmbedQuiz({ params }: { params: { id: string } }) {
         if (typeof data.quiz.questions === 'string') {
           data.quiz.questions = JSON.parse(data.quiz.questions);
         }
+        
+        // Convert answers to options if needed for backward compatibility
+        data.quiz.questions = data.quiz.questions.map((q: any) => {
+          if (q.answers && !q.options) {
+            return {
+              ...q,
+              options: q.answers
+            };
+          }
+          return q;
+        });
         
         setQuiz(data.quiz);
       } catch (error) {
@@ -59,7 +71,7 @@ export default function EmbedQuiz({ params }: { params: { id: string } }) {
     return () => {
       if (timer) clearInterval(timer);
     };
-  }, [params.id]);
+  }, [id]);
 
   const handleAnswerSelect = (answer: string) => {
     if (isAnswerCorrect !== null) return; // Prevent changing answer after submission
@@ -79,7 +91,7 @@ export default function EmbedQuiz({ params }: { params: { id: string } }) {
     
     // Move to next question after a delay
     setTimeout(() => {
-      if (currentQuestionIndex < quiz.questions.length - 1) {
+      if (currentQuestionIndex < (quiz.questions?.length || 0) - 1) {
         setCurrentQuestionIndex(prev => prev + 1);
         setSelectedAnswer(null);
         setIsAnswerCorrect(null);
@@ -91,7 +103,8 @@ export default function EmbedQuiz({ params }: { params: { id: string } }) {
   };
 
   const skipQuestion = () => {
-    if (currentQuestionIndex < quiz?.questions.length - 1) {
+    if (!quiz) return;
+    if (currentQuestionIndex < (quiz.questions?.length || 0) - 1) {
       setCurrentQuestionIndex(prev => prev + 1);
       setSelectedAnswer(null);
       setIsAnswerCorrect(null);
@@ -138,111 +151,59 @@ export default function EmbedQuiz({ params }: { params: { id: string } }) {
   if (!quiz) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-900 to-blue-700 flex flex-col items-center justify-center text-white p-6">
-        <div className="text-6xl mb-4">🔍</div>
+        <div className="text-6xl mb-4">⚠️</div>
         <h1 className="text-2xl font-bold mb-4">Quiz Not Found</h1>
-        <p className="text-center max-w-md">We couldn't find the quiz you're looking for.</p>
+        <p className="text-center max-w-md">The requested quiz could not be loaded.</p>
       </div>
     );
   }
 
   if (quizComplete) {
-    const percentageCorrect = Math.round((score / quiz.questions.length) * 100);
-    const minutes = Math.floor(timeSpent / 60);
-    const seconds = timeSpent % 60;
-    
-    // Determine performance message
-    let performanceMessage = "Keep practicing!";
-    let emoji = "💪";
-    
-    if (percentageCorrect >= 90) {
-      performanceMessage = "Outstanding!";
-      emoji = "🏆";
-    } else if (percentageCorrect >= 70) {
-      performanceMessage = "Great job!";
-      emoji = "🌟";
-    } else if (percentageCorrect >= 50) {
-      performanceMessage = "Good effort!";
-      emoji = "👍";
-    }
-    
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-900 to-blue-700 flex items-center justify-center p-4">
-        <div className="bg-white rounded-xl p-8 shadow-lg max-w-md w-full">
-          <div className="text-center space-y-6">
-            <div className="space-y-2">
-              <div className="text-6xl animate-bounce">
-                {emoji}
-              </div>
-              <h2 className="text-2xl font-bold text-gray-900">
-                {performanceMessage}
-              </h2>
-              <p className="text-gray-600">
-                You've completed the quiz! Here's how you did:
-              </p>
-            </div>
-            
-            <div className="relative w-32 h-32 mx-auto">
-              <svg className="w-full h-full" viewBox="0 0 100 100">
-                <circle
-                  className="text-gray-200 stroke-current"
-                  strokeWidth="10"
-                  fill="transparent"
-                  r="40"
-                  cx="50"
-                  cy="50"
-                />
-                <circle
-                  className="text-blue-600 stroke-current"
-                  strokeWidth="10"
-                  strokeLinecap="round"
-                  fill="transparent"
-                  r="40"
-                  cx="50"
-                  cy="50"
-                  strokeDasharray={`${percentageCorrect * 2.51327} 251.327`}
-                  transform="rotate(-90 50 50)"
-                />
-                <text
-                  x="50"
-                  y="50"
-                  className="text-2xl font-bold"
-                  textAnchor="middle"
-                  dy="9"
-                  fill="#1a1a1a"
-                >
-                  {percentageCorrect}%
-                </text>
-              </svg>
-            </div>
-            
+        <div className="bg-white rounded-xl p-6 shadow-lg max-w-2xl w-full">
+          <h2 className="text-2xl font-bold text-center text-gray-900 mb-6">
+            Quiz Complete!
+          </h2>
+          
+          <div className="bg-blue-50 rounded-lg p-6 mb-6">
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <div className="text-xl font-bold text-green-600">
-                  {score}
-                </div>
-                <div className="text-sm text-gray-600">
-                  Correct Answers
-                </div>
+              <div className="text-center">
+                <div className="text-3xl font-bold text-blue-600">{score}</div>
+                <div className="text-sm text-gray-500">Correct Answers</div>
               </div>
-              <div className="space-y-2">
-                <div className="text-xl font-bold text-purple-600">
-                  {minutes}:{seconds.toString().padStart(2, '0')}
+              <div className="text-center">
+                <div className="text-3xl font-bold text-blue-600">{quiz.questions.length}</div>
+                <div className="text-sm text-gray-500">Total Questions</div>
+              </div>
+              <div className="text-center">
+                <div className="text-3xl font-bold text-blue-600">
+                  {Math.round((score / quiz.questions.length) * 100)}%
                 </div>
-                <div className="text-sm text-gray-600">
-                  Time Spent
+                <div className="text-sm text-gray-500">Score</div>
+              </div>
+              <div className="text-center">
+                <div className="text-3xl font-bold text-blue-600">
+                  {Math.floor(timeSpent / 60)}:{(timeSpent % 60).toString().padStart(2, '0')}
                 </div>
+                <div className="text-sm text-gray-500">Time Spent</div>
               </div>
             </div>
-            
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={restartQuiz}
-              className="w-full py-3 px-6 bg-gradient-to-r from-blue-500 to-blue-700 text-white rounded-lg font-semibold
-                       transition-all duration-200 hover:from-blue-600 hover:to-blue-800 active:opacity-90"
-            >
-              Try Again
-            </motion.button>
+          </div>
+          
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={restartQuiz}
+            className="w-full py-3 px-6 bg-gradient-to-r from-blue-500 to-blue-700 
+                     text-white rounded-lg font-semibold transition-all duration-200 
+                     hover:from-blue-600 hover:to-blue-800 active:opacity-90"
+          >
+            Restart Quiz
+          </motion.button>
+          
+          <div className="mt-6 text-center text-sm text-gray-500">
+            <p>This quiz is powered by <span className="font-medium">QuizMe</span></p>
           </div>
         </div>
       </div>
@@ -275,14 +236,14 @@ export default function EmbedQuiz({ params }: { params: { id: string } }) {
         </h2>
         
         <div className="space-y-3 mb-6">
-          {currentQuestion.answers.map((answer, index) => (
+          {currentQuestion.options && currentQuestion.options.map((option: string, index: number) => (
             <motion.button
               key={index}
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
-              onClick={() => handleAnswerSelect(answer)}
+              onClick={() => handleAnswerSelect(option)}
               className={`w-full p-4 rounded-lg text-left transition-all ${
-                selectedAnswer === answer 
+                selectedAnswer === option 
                   ? isAnswerCorrect === null
                     ? 'bg-blue-100 border-2 border-blue-500'
                     : isAnswerCorrect
@@ -290,14 +251,14 @@ export default function EmbedQuiz({ params }: { params: { id: string } }) {
                       : 'bg-red-100 border-2 border-red-500'
                   : 'bg-gray-50 border border-gray-200 hover:bg-gray-100'
               } ${
-                isAnswerCorrect !== null && answer === currentQuestion.correctAnswer
+                isAnswerCorrect !== null && option === currentQuestion.correctAnswer
                   ? 'bg-green-100 border-2 border-green-500'
                   : ''
               }`}
             >
               <div className="flex items-center">
                 <div className={`w-6 h-6 rounded-full mr-3 flex items-center justify-center ${
-                  selectedAnswer === answer
+                  selectedAnswer === option
                     ? isAnswerCorrect === null
                       ? 'bg-blue-500 text-white'
                       : isAnswerCorrect
@@ -305,13 +266,13 @@ export default function EmbedQuiz({ params }: { params: { id: string } }) {
                         : 'bg-red-500 text-white'
                     : 'bg-gray-200 text-gray-700'
                 } ${
-                  isAnswerCorrect !== null && answer === currentQuestion.correctAnswer
+                  isAnswerCorrect !== null && option === currentQuestion.correctAnswer
                     ? 'bg-green-500 text-white'
                     : ''
                 }`}>
                   {String.fromCharCode(65 + index)}
                 </div>
-                <span>{answer}</span>
+                <span>{option}</span>
               </div>
             </motion.button>
           ))}
@@ -346,4 +307,11 @@ export default function EmbedQuiz({ params }: { params: { id: string } }) {
       </div>
     </div>
   );
+}
+
+// Server component wrapper that handles the params Promise
+export default async function EmbedQuiz(props: { params: Promise<{ id: string }> }) {
+  // In Next.js 15, we need to handle params as a Promise
+  const { id } = await props.params;
+  return <EmbedQuizClient id={id} />;
 }

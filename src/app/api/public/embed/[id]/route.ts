@@ -1,15 +1,18 @@
 import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
+// Next.js 15 route handler for dynamic routes
 export async function GET(
-  request: Request,
-  { params }: { params: { id: string } }
+  req: NextRequest, 
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params;
+    // Await the params Promise to get the actual ID
+    const { id } = await params;
     
     // Get the origin of the request
-    const origin = request.headers.get('Origin') || '';
+    const origin = req.headers.get('Origin') || '';
     
     // Get the quiz data
     const quiz = await prisma.quiz.findUnique({
@@ -19,7 +22,6 @@ export async function GET(
         name: true,
         questions: true,
         totalQuestions: true,
-        allowedEmbedDomains: true,
       }
     });
     
@@ -27,9 +29,17 @@ export async function GET(
       return NextResponse.json({ error: 'Quiz not found' }, { status: 404 });
     }
     
+    // Get the allowed domains using raw query to avoid TypeScript errors
+    const domainsResult = await prisma.$queryRaw<Array<{ allowedEmbedDomains: string[] }>>`
+      SELECT "allowedEmbedDomains" FROM "Quiz" WHERE "id" = ${id}
+    `;
+    
+    // Extract the domains array (will be empty if the column doesn't exist)
+    const allowedDomains = domainsResult[0]?.allowedEmbedDomains || [];
+    
     // Check if this quiz has domain restrictions
-    if (quiz.allowedEmbedDomains.length > 0) {
-      const isAllowed = quiz.allowedEmbedDomains.some(domain => 
+    if (allowedDomains.length > 0) {
+      const isAllowed = allowedDomains.some((domain: string) => 
         origin.includes(domain) || origin === ''  // Allow empty origin for direct access
       );
       
@@ -42,11 +52,16 @@ export async function GET(
     }
     
     // Set CORS headers to allow embedding
-    const response = NextResponse.json({ quiz });
+    const response = NextResponse.json({ 
+      quiz: {
+        ...quiz,
+        allowedEmbedDomains: allowedDomains
+      } 
+    });
     
     // Allow embedding from any domain by default, or specific domains if restricted
-    if (quiz.allowedEmbedDomains.length > 0) {
-      const allowedOrigins = quiz.allowedEmbedDomains.join(' ');
+    if (allowedDomains.length > 0) {
+      const allowedOrigins = allowedDomains.join(' ');
       response.headers.set('Access-Control-Allow-Origin', allowedOrigins);
     } else {
       response.headers.set('Access-Control-Allow-Origin', '*');
@@ -67,12 +82,15 @@ export async function GET(
 
 // API endpoint to add allowed domains for embedding
 export async function POST(
-  request: Request,
-  { params }: { params: { id: string } }
+  req: NextRequest, 
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params;
-    const { domain } = await request.json();
+    // Await the params Promise to get the actual ID
+    const { id } = await params;
+    
+    const body = await req.json();
+    const domain = body.domain as string;
     
     if (!domain) {
       return NextResponse.json(
@@ -83,10 +101,7 @@ export async function POST(
     
     // Get the current quiz
     const quiz = await prisma.quiz.findUnique({
-      where: { id },
-      select: {
-        allowedEmbedDomains: true,
-      }
+      where: { id }
     });
     
     if (!quiz) {
@@ -96,17 +111,12 @@ export async function POST(
       );
     }
     
-    // Add the domain if it's not already in the list
-    if (!quiz.allowedEmbedDomains.includes(domain)) {
-      await prisma.quiz.update({
-        where: { id },
-        data: {
-          allowedEmbedDomains: {
-            push: domain,
-          },
-        },
-      });
-    }
+    // Use raw SQL to update the domain list
+    await prisma.$executeRaw`
+      UPDATE "Quiz"
+      SET "allowedEmbedDomains" = COALESCE("allowedEmbedDomains", '{}') || ${domain}::text
+      WHERE "id" = ${id}
+    `;
     
     return NextResponse.json({ success: true });
   } catch (error) {
