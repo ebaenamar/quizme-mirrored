@@ -45,7 +45,9 @@ export default function EmbedCode({ quizId, onSave }: EmbedCodeProps) {
         
         if (response.ok) {
           generateEmbedCode();
-          onSave && onSave(domain);
+          if (onSave) {
+            onSave(domain);
+          }
         } else {
           console.error('Failed to save domain');
         }
