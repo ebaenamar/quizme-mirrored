@@ -16,17 +16,18 @@ model User {
 }
 
 model Quiz {
-  id               String   @id @default(uuid())
-  name             String   @default("Untitled Quiz")
-  text             String
-  questions        String
-  totalQuestions   Int
-  correctAnswers   Int
-  skippedQuestions Int
-  timeSpent        Int
-  createdAt        DateTime @default(now())
-  timesCompleted   Int      @default(0)
-  totalScore       Int      @default(0)
-  userId           String?
-  user             User?    @relation(fields: [userId], references: [id])
+  id                 String   @id @default(uuid())
+  name               String   @default("Untitled Quiz")
+  text               String
+  questions          String
+  totalQuestions     Int
+  correctAnswers     Int
+  skippedQuestions   Int
+  timeSpent          Int
+  createdAt          DateTime @default(now())
+  timesCompleted     Int      @default(0)
+  totalScore         Int      @default(0)
+  allowedEmbedDomains String[] @default([])
+  userId             String?
+  user               User?    @relation(fields: [userId], references: [id])
 }

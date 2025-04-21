@@ -2,6 +2,7 @@
 import FeedbackSection from './FeedbackSection';
 import { useState } from 'react';
 import type { Question } from '@/types';
+import EmbedCode from './EmbedCode';
 
 interface CompletionStats {
   totalQuestions: number;
@@ -22,6 +23,7 @@ export default function CompletionScreen({
   questions?: Question[];
 }) {
   const [showFeedback, setShowFeedback] = useState(false);
+  const [showEmbed, setShowEmbed] = useState(false);
   const percentageCorrect = Math.round((stats.correctAnswers / stats.totalQuestions) * 100);
   const minutes = Math.floor(stats.timeSpent / 60);
   const seconds = stats.timeSpent % 60;
@@ -151,14 +153,31 @@ export default function CompletionScreen({
         {/* Action Buttons */}
         <div className="space-y-4 pt-4">
           {quizId && (
-            <button
-              onClick={handleShare}
-              className="w-full py-3 px-6 bg-green-500 text-white rounded-lg font-semibold
-                       transition-all duration-200 hover:bg-green-600 hover:scale-102 active:scale-98
-                       mb-3"
-            >
-              Share Quiz 🔗
-            </button>
+            <>
+              <button
+                onClick={handleShare}
+                className="w-full py-3 px-6 bg-green-500 text-white rounded-lg font-semibold
+                         transition-all duration-200 hover:bg-green-600 hover:scale-102 active:scale-98
+                         mb-3"
+              >
+                Share Quiz 🔗
+              </button>
+              
+              <button
+                onClick={() => setShowEmbed(!showEmbed)}
+                className="w-full py-3 px-6 bg-gradient-to-r from-blue-500 to-blue-700 text-white rounded-lg font-semibold
+                         transition-all duration-200 hover:from-blue-600 hover:to-blue-800 active:scale-98
+                         mb-3"
+              >
+                {showEmbed ? 'Hide Embed Options' : 'Embed This Quiz 📋'}
+              </button>
+              
+              {showEmbed && (
+                <div className="mt-4 mb-4">
+                  <EmbedCode quizId={quizId} />
+                </div>
+              )}
+            </>
           )}
           <button
             onClick={onRestart}
